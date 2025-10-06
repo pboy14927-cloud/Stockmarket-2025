@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Dashboard Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .success {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            border-color: #bee5eb;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        .chart-container {
+            margin: 20px 0;
+        }
+        .bar {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+        .bar-label {
+            width: 150px;
+            font-weight: bold;
+        }
+        .bar-visual {
+            height: 30px;
+            background-color: #007bff;
+            color: white;
+            display: flex;
+            align-items: center;
+            padding-left: 10px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Admin Dashboard Diagnostic Test</h1>
+        
+        <div class="test-section info">
+            <h2>📋 Test Instructions</h2>
+            <ol>
+                <li>Make sure Flask server is running (python app.py)</li>
+                <li>Make sure you're logged in as admin</li>
+                <li>Click buttons below to test each endpoint</li>
+                <li>Check the results to see what data is being returned</li>
+            </ol>
+        </div>
+
+        <div class="test-section">
+            <h2>🧪 API Endpoint Tests</h2>
+            <button onclick="testEntryStocks()">Test Entry Zone API</button>
+            <button onclick="testBreakoutStocks()">Test Breakout API</button>
+            <button onclick="testScreenings()">Test Screenings API</button>
+            <button onclick="testAll()">Test All APIs</button>
+        </div>
+
+        <div id="results"></div>
+
+        <div id="visualization" class="chart-container"></div>
+
+        <div class="test-section">
+            <h2>📊 Recharts Test</h2>
+            <button onclick="testRecharts()">Test if Recharts is Loaded</button>
+            <div id="recharts-test"></div>
+        </div>
+    </div>
+
+    <script>
+        const resultsDiv = document.getElementById('results');
+        const vizDiv = document.getElementById('visualization');
+
+        function addResult(title, data, isError = false) {
+            const section = document.createElement('div');
+            section.className = 'test-section ' + (isError ? 'error' : 'success');
+            section.innerHTML = `
+                <h3>${title}</h3>
+                <pre>${JSON.stringify(data, null, 2)}</pre>
+            `;
+            resultsDiv.appendChild(section);
+        }
+
+        async function testEntryStocks() {
+            resultsDiv.innerHTML = '';
+            try {
+                const response = await fetch('/admin/api/entry-zone-stocks');
+                const data = await response.json();
+                addResult('✅ Entry Zone Stocks API', {
+                    status: response.status,
+                    success: data.success,
+                    stockCount: data.stocks?.length || 0,
+                    firstStock: data.stocks?.[0],
+                    allData: data
+                });
+                visualizeData(data.stocks, 'Entry Zone Stocks');
+            } catch (error) {
+                addResult('❌ Entry Zone Stocks API Error', { error: error.message }, true);
+            }
+        }
+
+        async function testBreakoutStocks() {
+            try {
+                const response = await fetch('/admin/api/breakout-stocks');
+                const data = await response.json();
+                addResult('✅ Breakout Stocks API', {
+                    status: response.status,
+                    success: data.success,
+                    stockCount: data.stocks?.length || 0,
+                    firstStock: data.stocks?.[0],
+                    allData: data
+                });
+                visualizeData(data.stocks, 'Breakout Stocks');
+            } catch (error) {
+                addResult('❌ Breakout Stocks API Error', { error: error.message }, true);
+            }
+        }
+
+        async function testScreenings() {
+            try {
+                const response = await fetch('/admin/api/stock-screenings');
+                const data = await response.json();
+                addResult('✅ Stock Screenings API', {
+                    status: response.status,
+                    success: data.success,
+                    screeningCount: data.screenings?.length || 0,
+                    firstScreening: data.screenings?.[0]
+                });
+            } catch (error) {
+                addResult('❌ Stock Screenings API Error', { error: error.message }, true);
+            }
+        }
+
+        async function testAll() {
+            resultsDiv.innerHTML = '';
+            vizDiv.innerHTML = '';
+            await testEntryStocks();
+            await testBreakoutStocks();
+            await testScreenings();
+        }
+
+        function visualizeData(stocks, title) {
+            if (!stocks || stocks.length === 0) {
+                vizDiv.innerHTML += `<div class="test-section error"><h3>${title}</h3><p>No stocks to visualize</p></div>`;
+                return;
+            }
+
+            // Calculate industry distribution
+            const industryMap = {};
+            stocks.forEach(stock => {
+                const industry = stock.industry || 'Unknown';
+                industryMap[industry] = (industryMap[industry] || 0) + 1;
+            });
+
+            const industries = Object.entries(industryMap)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5);
+
+            const maxCount = Math.max(...industries.map(i => i[1]));
+
+            let html = `
+                <div class="test-section success">
+                    <h3>📊 ${title} - Industry Distribution</h3>
+            `;
+
+            industries.forEach(([industry, count]) => {
+                const width = (count / maxCount) * 100;
+                html += `
+                    <div class="bar">
+                        <div class="bar-label">${industry}</div>
+                        <div class="bar-visual" style="width: ${width}%">${count}</div>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            vizDiv.innerHTML += html;
+        }
+
+        function testRecharts() {
+            const testDiv = document.getElementById('recharts-test');
+            
+            // Try to load recharts from CDN
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/recharts@2.10.1/dist/Recharts.js';
+            script.onload = () => {
+                testDiv.innerHTML = '<div class="test-section success"><h3>✅ Recharts Loaded Successfully</h3><p>Version: ' + (window.Recharts?.version || 'Unknown') + '</p></div>';
+            };
+            script.onerror = () => {
+                testDiv.innerHTML = '<div class="test-section error"><h3>❌ Recharts Failed to Load</h3><p>Make sure npm packages are installed correctly</p></div>';
+            };
+            document.head.appendChild(script);
+        }
+
+        // Auto-run tests on page load
+        window.onload = () => {
+            console.log('Diagnostic page loaded');
+        };
+    </script>
+</body>
+</html>
